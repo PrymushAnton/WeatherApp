@@ -64,36 +64,54 @@ class City_Frame(ctk.CTkFrame):
         )
         self.min_max_label.grid(row = 2, column = 1, sticky = "e", padx=(0,10), pady=(10,10))
 
-# cities = ["Dnipro", "Kyiv", "Budapest", "Warsaw", "Vienna", "Prague", "Berlin", "Milan", "Paris", "London", "NewYork"] 
+# список городов
+cities = ["Kyiv", "Budapest", "Warsaw", "Vienna", "Prague", "Berlin", "Milan", "Paris", "London", "NewYork"] 
 
-# my_city_info = requests.get("https://ipinfo.io/json")
-# my_city_name = my_city_info.json()["city"]
+# узнаем место расположения
+my_city_info = requests.get("https://ipinfo.io/json")
+my_city_name = my_city_info.json()["city"]
 
-# if my_city_name not in cities: #не в (списке, словаре)
-#     cities.append(my_city_name) 
+# записываем наш город первым в списке
+if my_city_name not in cities:
+    cities.insert(0, my_city_name)
 
-my_path = os.path.abspath(__file__)
-my_dir = os.path.dirname(my_path)
-my_db = my_dir + "\\..\\..\\data_base.json"
+# готовим структуру бд
+db_data = {}
 
-with open(my_db, "r") as file:
-    weather_data = json.load(file) #dump - для вгрузки, load - для выгрузки
+for city in cities:
 
-for city_weather in weather_data: #range(), "stewtwert", [1,2,3,4,5]
-
-    # url = f"http://wttr.in/{city_name}?format=j1"
-    # result = requests.get(url)
+    url = f"http://wttr.in/{city}?format=j1"
+    result = requests.get(url).json()
     
-    temp = city_weather["current_condition"][0]["temp_C"] + "°"
-    condition = city_weather["current_condition"][0]["weatherDesc"][0]["value"][0:15] + "..."
-    min_max = f"min:{city_weather["weather"][0]["mintempC"]} max:{city_weather["weather"][0]["maxtempC"]}"
+    temp = result["current_condition"][0]["temp_C"] + "°"
+    condition = result["current_condition"][0]["weatherDesc"][0]["value"]
+    if len(condition) > 12: # проверка кол-ва символов в погоде
+        condition = condition[0:12] + "..."
     
-    my_lat = city_weather["nearest_area"][0]["latitude"]
-    my_long = city_weather["nearest_area"][0]["longitude"]
+    min_max = f"min:{result['weather'][0]['mintempC']} max:{result['weather'][0]['maxtempC']}"
+    
+    my_lat = result["nearest_area"][0]["latitude"]
+    my_long = result["nearest_area"][0]["longitude"]
     
     timezona_name = TimezoneFinder().timezone_at(lat = float(my_lat), lng = float(my_long))
     zona = zoneinfo.ZoneInfo(timezona_name)
     my_time = datetime.datetime.now(zona)
     time = my_time.strftime("%H:%M")
+    
+    # пополняем бд
+    db_data[city] = {
+        "time_data": time,
+        "date_data": my_time.strftime("%d.%m.%Y"),
+        "day_of_week": my_time.strftime("%A"),
+        "api_data": result
+    }
 
-    cf = City_Frame(vertical_scroll, "Город", time, temp, condition, min_max) 
+    cf = City_Frame(vertical_scroll, city, time, temp, condition, min_max)
+    break
+# строим путь к бд  
+my_path = os.path.abspath(__file__)
+my_dir = os.path.dirname(my_path)
+my_db = my_dir + "\\..\\..\\data_base.json"
+
+with open(my_db, "w") as file:
+    json.dump(db_data, file, indent=4)
